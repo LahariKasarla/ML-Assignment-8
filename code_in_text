@@ -1,0 +1,215 @@
+import pandas as pd
+import numpy as np
+
+
+##READING INPUT FILE, INITIAL SPACES IN COLUMNS HAVE TO SKIPPED AS THERE WAS A PROBLEM IN DROPPING COLUMNS WITHOUT THIS STATEMENT. 
+df0 = pd.read_csv("WA_Fn-UseC_-HR-Employee-Attrition.csv",skipinitialspace=True)
+df0.head
+
+
+##CHECKING FOR NULL VALUES
+df0.isnull().sum()
+
+###WE HAVE TO USE THESE PERFORMANCE METRICS:
+##ACCURACY: MIGHT BE A BAD ONE. HERE AFTER CALCULATING CONFUSION MATRICES OF ALGOS WHEREEVER TRUE NEGATIVES MIGHT BE MORE, USING ACCURACY WOULD BE A BAD METRIC. IT MIGHT GIVE A FALSE IMPRESSION OF CORRECTNESS BUT WILL MISS ON PREDICTING MANY TRUE POSITIVE CASES AS TRUE NEGATIVE ARE MORE. THIS WOULD BE A PROBLEM. WHENEVER IT HAS TO RIGHTLY PREDICT A PERSON WILL LEAVE THE COMPANY, IT MIGHT MISS IT. BUT WILL PREDICT BETTER IN CASES WHERE THE PERSON WILL NOT LEAVE THE COMPANY. 
+##RECALL: IF IT IS MORE, WHEREVER ATTRITION SHOULD HAVE SHOWN YES, IN MANY CASES IT WILL SHOW YES.SO, IT IS AN IMPORTANT MEASURE TO PROTECT EMPLOYEES FROM CHANGING COMPANIES BEFOREHAND.
+##PRECISION: IT IS ALSO IMPORTANT. IF IT IS MORE, IT WILL INDICATE THAT HIGH NUMBER OF CHOICES WHICH HAVE BEEN CORRECTLY PREDICTED.
+
+##THE NEXT STEP IS MAPPING TARGET YES VALUE TO 1 AND NO VALUE TO ZERO
+level = {'No': 0, 'Yes': 1}
+df0['Attrition']=df0['Attrition'].map(level)
+df0.dtypes
+df0['Attrition']
+
+
+##WE CAN SEE THAT THERE ARE MORE SAMPLES IN THE DATASET WHERE THE TARGET VALUE ATTRITION IS NO AND SO THE DATASET SEEMS UNBALANCED
+df0.Attrition.value_counts()
+
+df0.OverTime.value_counts
+
+###MAPPING OVERTIME YES VALUE TO 1 AND NO TO 0
+df0['OverTime']=df0['OverTime'].map(level)
+df0['OverTime']
+
+##WE WILL NOW REMOVE UNNECESSARY COLUMNS WHICH WILL NOT HELP US IN PREDICTING THE RESULT
+##THE FOLLOWING COLUMNS HAVE THE SAME VALUE IN THE WHOLE DATASET AND WILL NOT PLAY A MAJOR ROLE IN ATTRITION PREDICTION
+##Employee number has a unique number all over.
+
+df0.drop(columns=['Over18','EmployeeCount','EmployeeNumber','StandardHours'], axis=1, inplace=True)
+
+df0.describe()
+
+##DATA VISUALIZATION COMPARING EATURES WITH TARGET VALUE##
+import matplotlib.pyplot as plt
+import seaborn as sns
+total_records= len(df0)
+columns = ["Gender","MaritalStatus","WorkLifeBalance","EnvironmentSatisfaction","JobSatisfaction",
+           "JobLevel","EducationField","Department"]
+plt.figure(figsize=(12,8))
+j=0
+for i in columns:
+    j +=1
+    plt.subplot(4,2,j)
+    ax1 = sns.countplot(data=df0,x= i,hue="Attrition")
+    if(j==8 or j== 7):
+        plt.xticks( rotation=90)
+    for p in ax1.patches:
+        height = p.get_height()
+        ax1.text(p.get_x()+p.get_width()/2.,
+                height + 3,
+                '{:1.2f}'.format(height/total_records,0),
+                ha="center",rotation=0) 
+
+plt.subplots_adjust(bottom=-0.9, top=2)
+plt.show()
+
+###CALCULATING CORRELATION COEFFICIENTS###
+import matplotlib.pyplot as plt
+wcorr = df0.corr() 
+plt.matshow(wcorr.abs()) 
+plt.colorbar() 
+plt.xticks(range(len(wcorr.columns)), wcorr.columns, rotation='vertical')
+plt.yticks(range(len(wcorr.columns)), wcorr.columns)
+#Another way of displaying the correlations 
+wcorr.abs().style.background_gradient() 
+
+##Monthly income is highly correlated with Job level. 
+##Job level is highly correlated with total working hours.
+## Monthly income is highly correlated with total working hours.
+## Age is also positively correlated with the Total working hours.
+
+
+###REMOVING HIGHLY CORRELATED FEATURES###
+df1 = df1.drop(columns={'MonthlyIncome', 'JobLevel', 'TotalWorkingYears','Age'})
+
+
+df1 = df1.drop(columns={'PercentSalaryHike','PerformanceRating'})
+
+
+from sklearn import datasets, linear_model
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+
+##CREATING DUMMIES FOR CATEGORICAL VALUES
+df1 = df0.copy()
+df1 = pd.get_dummies(df1, columns=['BusinessTravel','Department','Gender','JobRole','EducationField','MaritalStatus'], prefix = ['BT','DPT','GDR','JRL','EF','MS'])
+
+print(df1.head())
+
+# create training and testing variables
+X = df1.drop(["Attrition"],axis=1)
+y = df1['Attrition']
+train_X, X_test, train_y, y_test = train_test_split(X, y, test_size=0.3)
+print (train_X.shape, train_y.shape)
+print (X_test.shape, y_test.shape)
+
+##USING LOGISTIC REGRESSION
+logreg_mod = LogisticRegression(random_state=42, class_weight='balanced').fit(train_X,train_y)
+y_pred_logreg = logreg_mod.predict(train_X)
+y_pred_logreg
+y_pred_logreg1 = logreg_mod.predict(X_test)
+y_pred_logreg1
+
+from sklearn.metrics import accuracy_score,f1_score,classification_report,confusion_matrix
+print("Accuracy Score:", accuracy_score(y_pred_logreg, train_y))
+print("F1 Score :",f1_score(y_pred_logreg,train_y,average = "weighted"))
+print('Report:\n',classification_report(train_y, y_pred_logreg))
+print('Confusion Matrix: \n',confusion_matrix(train_y, y_pred_logreg)) 
+
+from sklearn.metrics import accuracy_score,f1_score,classification_report,confusion_matrix
+print("Accuracy Score:", accuracy_score(y_pred_logreg1, y_test))
+print("F1 Score :",f1_score(y_pred_logreg1,y_test,average = "weighted"))
+print('Report:\n',classification_report(y_test, y_pred_logreg1))
+print('Confusion Matrix: \n',confusion_matrix(y_test, y_pred_logreg1)) 
+
+###USING DECISION TREE CLASSIFIER
+
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+dectre_mod = DecisionTreeClassifier(random_state=42, class_weight='balanced').fit(train_X,train_y)
+y_pred_dectre = dectre_mod.predict(train_X)
+y_pred_dectre
+y_pred_dectre1 = dectre_mod.predict(X_test)
+y_pred_dectre1 
+
+print("Accuracy Score:", accuracy_score(y_pred_dectre, train_y))
+print("F1 Score :",f1_score(y_pred_dectre,train_y,average = "weighted"))
+print('Report:\n',classification_report(train_y, y_pred_dectre))
+print('Confusion Matrix: \n',confusion_matrix(train_y, y_pred_dectre))
+
+print("Accuracy Score:", accuracy_score(y_pred_dectre1, y_test))
+print("F1 Score :",f1_score(y_pred_dectre1,y_test,average = "weighted"))
+print('Report:\n',classification_report(y_test, y_pred_dectre1))
+print('Confusion Matrix: \n',confusion_matrix(y_test, y_pred_dectre1))
+
+###FINDING FEATURE IMPORTANCE USING RANDOM FOREST CLASSIFIER WITH HYPER PARAMETER TUNING###
+rfc_mod = RandomForestClassifier(n_estimators=100,random_state=42, class_weight='balanced').fit(train_X, train_y)
+feat_importances = pd.Series(rfc_mod.feature_importances_, index=train_X.columns)
+feat_importances = feat_importances.nlargest(20)
+feat_importances.plot(kind='barh')
+plt.title("Feature Importance")
+plt.xlabel("Importance")
+plt.ylabel("Features")
+plt.show() 
+
+
+###CONSIDERING RECURSIVE FEATURE ELIMINATION TO BUILD MY NEXT RANDOM FOREST CLASSIFIER MODEL###
+from sklearn.feature_selection import RFE
+rfe = RFE(rfc_mod, 20)
+rfe.fit(train_X,train_y)
+colm = train_X.columns[rfe.support_]
+rfc_mod.fit(train_X[colm],train_y)
+y_pred_rfc1= rfc_mod.predict(train_X[colm])
+y_pred_rfc1
+_y_pred_rfc2 = rfc_mod.predict(X_test[colm])
+y_pred_rfc2
+
+print("Accuracy Score:", accuracy_score(y_pred_rfc1, train_y))
+print("F1 Score :",f1_score(y_pred_rfc1,train_y,average = "weighted"))
+print('Report:\n',classification_report(train_y, y_pred_rfc1))
+print('Confusion Matrix: \n',confusion_matrix(train_y, y_pred_rfc1))
+
+print("Accuracy Score:", accuracy_score(y_pred_rfc2, y_test))
+print("F1 Score :",f1_score(y_pred_rfc2,y_test,average = "weighted"))
+print('Report:\n',classification_report(y_test, y_pred_rfc2))
+print('Confusion Matrix: \n',confusion_matrix(y_test, y_pred_rfc2))
+
+###COMPARING PERFOMANCE OF MODELS####
+from sklearn.metrics import recall_score
+from sklearn.metrics import precision_score
+
+
+data = {'Metric':[' Accuracy','F1 Score','Recall','Precision'],
+        'RFC using RFE':[accuracy_score(y_pred_rfc2, y_test),f1_score(y_pred_rfc2,y_test,average = "weighted"),recall_score(y_pred_rfc2, y_test,average="weighted"),precision_score(y_pred_rfc2, y_test,average="weighted")],
+        'Decision Trees':[accuracy_score(y_pred_dectre1, y_test),f1_score(y_pred_dectre1, y_test,average="weighted"),recall_score(y_pred_dectre1, y_test,average="weighted"),precision_score(y_pred_dectre1, y_test,average="weighted")],
+       'Logistic Regression': [accuracy_score(y_pred_logreg1, y_test),f1_score(y_pred_logreg1, y_test,average="weighted"),recall_score(y_pred_logreg1, y_test,average="weighted"),precision_score(y_pred_logreg1, y_test,average="weighted")]}
+                          
+df = pd.DataFrame(data,columns=['Metric','RFC using RFE','Decision Trees','Logistic Regression'])
+df
+
+##RANDOM FOREST CLASSIFIER USING RECURSIVE FEATURE ELIMINATION GIVES THE BEST RESULT###
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
